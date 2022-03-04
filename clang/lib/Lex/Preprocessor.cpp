@@ -1287,7 +1287,7 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   }
 
   Module *Imported = nullptr;
-  if (getLangOpts().Modules) {
+  if (getLangOpts().Modules && PPOpts->ImportModules) {
     Imported = TheModuleLoader.loadModule(ModuleImportLoc,
                                           ModuleImportPath,
                                           Module::Hidden,

@@ -277,7 +277,7 @@ void Compilation::initCompilationForDiagnostics() {
   OptSpecifier OutputOpts[] = {
       options::OPT_o,  options::OPT_MD, options::OPT_MMD, options::OPT_M,
       options::OPT_MM, options::OPT_MF, options::OPT_MG,  options::OPT_MJ,
-      options::OPT_MQ, options::OPT_MT, options::OPT_MV};
+      options::OPT_MQ, options::OPT_MT, options::OPT_MV,  options::OPT_fdep_file};
   for (unsigned i = 0, e = llvm::array_lengthof(OutputOpts); i != e; ++i) {
     if (TranslatedArgs->hasArg(OutputOpts[i]))
       TranslatedArgs->eraseArg(OutputOpts[i]);
