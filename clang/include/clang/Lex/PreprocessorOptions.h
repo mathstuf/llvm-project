@@ -223,6 +223,8 @@ public:
   /// If set, the UNIX timestamp specified by SOURCE_DATE_EPOCH.
   Optional<uint64_t> SourceDateEpoch;
 
+  unsigned StandardModulesDepsFormat;
+
 public:
   PreprocessorOptions() : PrecompiledPreambleBytes(0, false) {}
 
@@ -260,6 +262,7 @@ public:
     PrecompiledPreambleBytes.first = 0;
     PrecompiledPreambleBytes.second = false;
     RetainExcludedConditionalBlocks = false;
+    StandardModulesDepsFormat = 0;
   }
 };
 

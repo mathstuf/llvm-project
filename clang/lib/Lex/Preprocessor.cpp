@@ -939,6 +939,7 @@ void Preprocessor::Lex(Token &Result) {
     case tok::semi:
       TrackGMFState.handleSemi();
       StdCXXImportSeqState.handleSemi();
+      ModuleDeclState.handleSemi();
       break;
     case tok::header_name:
     case tok::annot_header_unit:
@@ -947,6 +948,13 @@ void Preprocessor::Lex(Token &Result) {
     case tok::kw_export:
       TrackGMFState.handleExport();
       StdCXXImportSeqState.handleExport();
+      ModuleDeclState.handleExport();
+      break;
+    case tok::colon:
+      ModuleDeclState.handleColon();
+      break;
+    case tok::period:
+      ModuleDeclState.handlePeriod();
       break;
     case tok::identifier:
       if (Result.getIdentifierInfo()->isModulesImport()) {
@@ -961,12 +969,18 @@ void Preprocessor::Lex(Token &Result) {
         break;
       } else if (Result.getIdentifierInfo() == getIdentifierInfo("module")) {
         TrackGMFState.handleModule(StdCXXImportSeqState.afterTopLevelSeq());
+        ModuleDeclState.handleModule();
         break;
+      } else {
+        ModuleDeclState.handleIdentifier(Result.getIdentifierInfo());
+        if (ModuleDeclState.isModuleCandidate())
+          break;
       }
       [[fallthrough]];
     default:
       TrackGMFState.handleMisc();
       StdCXXImportSeqState.handleMisc();
+      ModuleDeclState.handleMisc();
       break;
     }
   }
@@ -1150,6 +1164,15 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   if (NamedModuleImportPath.empty() && getLangOpts().CPlusPlusModules) {
     if (LexHeaderName(Result))
       return true;
+
+    if (Result.is(tok::colon) && ModuleDeclState.isNamedModule()) {
+      std::string Name = ModuleDeclState.getPrimaryName().str();
+      Name += ":";
+      NamedModuleImportPath.push_back({getIdentifierInfo(Name),
+                                       Result.getLocation()});
+      CurLexerKind = CLK_LexAfterModuleImport;
+      return true;
+    }
   } else {
     Lex(Result);
   }
@@ -1284,7 +1307,8 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   std::string FlatModuleName;
   if (getLangOpts().ModulesTS || getLangOpts().CPlusPlusModules) {
     for (auto &Piece : NamedModuleImportPath) {
-      if (!FlatModuleName.empty())
+      // If the FlatModuleName ends with colon, it implies it is a partition.
+      if (!FlatModuleName.empty() && FlatModuleName.back() != ':')
         FlatModuleName += ".";
       FlatModuleName += Piece.first->getName();
     }
@@ -1295,7 +1319,8 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   }
 
   Module *Imported = nullptr;
-  if (getLangOpts().Modules) {
+  if (getLangOpts().Modules && 
+      !getPreprocessorOpts().StandardModulesDepsFormat) {
     Imported = TheModuleLoader.loadModule(ModuleImportLoc,
                                           NamedModuleImportPath,
                                           Module::Hidden,
