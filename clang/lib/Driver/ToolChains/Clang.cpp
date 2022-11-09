@@ -1280,6 +1280,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (Arg *ArgDepFormat = Args.getLastArg(options::OPT_fdep_format))
     CmdArgs.push_back(Args.MakeArgString(Twine("-fdep-format=") + ArgDepFormat->getValue()));
 
+  if (Arg *ArgDepFile = Args.getLastArg(options::OPT_fcxx_module_file_output))
+    C.addFailureResultFile(ArgDepFile->getValue(), &JA);
+
   // Add offload include arguments specific for CUDA/HIP.  This must happen
   // before we -I or -include anything else, because we must pick up the
   // CUDA/HIP headers from the particular CUDA/ROCm installation, rather than
@@ -3744,25 +3747,16 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
     CmdArgs.push_back(Args.MakeArgString(ModulesCachePath));
   }
 
-  if (HaveModules) {
-    // -fprebuilt-module-path specifies where to load the prebuilt module files.
-    for (const Arg *A : Args.filtered(options::OPT_fprebuilt_module_path)) {
+  // If we're in standard c++ modules, lookup in cache path automatically.
+  if (HaveStdCXXModules) {
+    SmallString<128> Path;
+    if (Arg *A = Args.getLastArg(options::OPT_fcxx_modules_cache_path))
+      Path = A->getValue();
+    else
+      Driver::getDefaultModuleCachePath(Path);
+    if (!Path.empty())
       CmdArgs.push_back(Args.MakeArgString(
-          std::string("-fprebuilt-module-path=") + A->getValue()));
-      A->claim();
-    }
-
-    if (HasCXXModules)
-      CmdArgs.push_back(Args.MakeArgString(
-          std::string("-fprebuilt-module-path=") + ModulesCachePath));
-
-    if (Args.hasFlag(options::OPT_fprebuilt_implicit_modules,
-                     options::OPT_fno_prebuilt_implicit_modules, false))
-      CmdArgs.push_back("-fprebuilt-implicit-modules");
-    if (Args.hasFlag(options::OPT_fmodules_validate_input_files_content,
-                     options::OPT_fno_modules_validate_input_files_content,
-                     false))
-      CmdArgs.push_back("-fvalidate-ast-input-files-content");
+          std::string("-fprebuilt-module-path=") + Path));
   }
 
   // -fmodule-name specifies the module that is currently being built (or
