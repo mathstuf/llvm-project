@@ -5531,6 +5531,25 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return "-";
   }
 
+  // If `-fsave-std-c++-module-file` is specfied, then:
+  // - If `-o` is specified, the module file is writing to the same path
+  //   with the output file in module file's suffix. 
+  // - If `-o` is not specified, the module file is writing to the same path
+  //   with the input file in module file's suffix.
+  if (!AtTopLevel && isa<PrecompileJobAction>(JA) &&
+      JA.getType() == types::TY_ModuleFile &&
+      C.getArgs().hasArg(options::OPT_fsave_std_cxx_module_file)) {
+    SmallString<128> TempPath;
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+      TempPath = FinalOutput->getValue();
+    else
+      TempPath = BaseInput;
+
+    const char *Extension = types::getTypeTempSuffix(JA.getType());
+    llvm::sys::path::replace_extension(TempPath, Extension);
+    return C.addResultFile(C.getArgs().MakeArgString(TempPath.c_str()), &JA);
+  }
+
   if (IsDXCMode() && !C.getArgs().hasArg(options::OPT_o))
     return "-";
 
