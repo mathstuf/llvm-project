@@ -348,6 +348,14 @@ void ModuleDepCollectorPP::InclusionDirective(
 void ModuleDepCollectorPP::moduleImport(SourceLocation ImportLoc,
                                         ModuleIdPath Path,
                                         const Module *Imported) {
+  if (MDC.ScanInstance.getPreprocessor().isImportingCXXNamedModules()) {
+    ModuleID RequiredModule;
+    RequiredModule.ModuleName = Path[0].first->getName().str();
+    RequiredModule.Type = ModuleID::ModuleType::NamedCXXModule;
+    MDC.RequiredStdCXXModules.push_back(RequiredModule);
+    return;
+  }
+
   handleImport(Imported);
 }
 
@@ -370,6 +378,21 @@ void ModuleDepCollectorPP::EndOfMainFile() {
                                  .getFileEntryForID(MainFileID)
                                  ->getName());
 
+  auto &PP = MDC.ScanInstance.getPreprocessor();
+  if (PP.isNamedModule()) {
+    ModuleID ProvidedModule;
+    ProvidedModule.ModuleName = PP.getNamedModuleName();
+    ProvidedModule.Type = ModuleID::ModuleType::NamedCXXModule;
+    ProvidedModule.IsStdCXXModuleInterface = PP.isNamedInterfaceUnit();
+    // Don't put implementation (non partition) unit as Provide.
+    // Put the module as required instead. Since the implementation
+    // unit will import the primary module implicitly.
+    if (PP.isImplementationUnit())
+      MDC.RequiredStdCXXModules.push_back(ProvidedModule);
+    else
+      MDC.ProvidedStdCXXModule = ProvidedModule;
+  }
+
   if (!MDC.ScanInstance.getPreprocessorOpts().ImplicitPCHInclude.empty())
     MDC.addFileDep(MDC.ScanInstance.getPreprocessorOpts().ImplicitPCHInclude);
 
@@ -389,6 +412,10 @@ void ModuleDepCollectorPP::EndOfMainFile() {
   }
 
   MDC.Consumer.handleDependencyOutputOpts(*MDC.Opts);
+
+  if (MDC.isP1689Format())
+    MDC.Consumer.handleProvidedAndRequiredStdCXXModules(
+        MDC.ProvidedStdCXXModule, MDC.RequiredStdCXXModules);
 
   for (auto &&I : MDC.ModularDeps)
     MDC.Consumer.handleModuleDependency(*I.second);
@@ -599,4 +626,8 @@ void ModuleDepCollector::addFileDep(ModuleDeps &MD, StringRef Path) {
   llvm::SmallString<256> Storage;
   Path = makeAbsolute(ScanInstance, Path, Storage);
   MD.FileDeps.insert(Path);
+}
+
+bool ModuleDepCollector::isP1689Format() const {
+  return Opts->StdModuleDepFormat == StdCXXModuleDependencyFormat::P1689;
 }
