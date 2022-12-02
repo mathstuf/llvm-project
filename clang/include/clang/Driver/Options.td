@@ -2285,6 +2285,8 @@ defm prebuilt_implicit_modules : BoolFOption<"prebuilt-implicit-modules",
   PosFlag<SetTrue, [], "Look up implicit modules in the prebuilt module path">,
   NegFlag<SetFalse>, BothFlags<[NoXarchOption, CC1Option]>>;
 
+def fsave_std_cxx_module_file_EQ : Joined<["-"], "fsave-std-c++-module-file=">, Flags<[NoXarchOption, CC1Option]>,
+  HelpText<"Save intermediate module file results when compiling a standard C++ module unit.">;
 def fsave_std_cxx_module_file : Flag<["-"], "fsave-std-c++-module-file">, Flags<[NoXarchOption, CC1Option]>,
   HelpText<"Save intermediate module file results when compiling a standard C++ module unit.">;
 

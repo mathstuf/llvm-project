@@ -5532,15 +5532,21 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   }
 
   // If `-fsave-std-c++-module-file` is specfied, then:
-  // - If `-o` is specified, the module file is writing to the same path
+  // - If `-fsave-std-c++-module-file` has a value, the module file is
+  //   writing to the value.
+  // - Else if `-o` is specified, the module file is writing to the same path
   //   with the output file in module file's suffix. 
-  // - If `-o` is not specified, the module file is writing to the same path
+  // - Else, the module file is writing to the same path
   //   with the input file in module file's suffix.
   if (!AtTopLevel && isa<PrecompileJobAction>(JA) &&
       JA.getType() == types::TY_ModuleFile &&
-      C.getArgs().hasArg(options::OPT_fsave_std_cxx_module_file)) {
+      (C.getArgs().hasArg(options::OPT_fsave_std_cxx_module_file) ||
+       C.getArgs().hasArg(options::OPT_fsave_std_cxx_module_file_EQ))) {
     SmallString<128> TempPath;
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+
+    if (Arg *ModuleFilePath = C.getArgs().getLastArg(options::OPT_fsave_std_cxx_module_file_EQ))
+      TempPath = ModuleFilePath->getValue();
+    else if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       TempPath = FinalOutput->getValue();
     else
       TempPath = BaseInput;
