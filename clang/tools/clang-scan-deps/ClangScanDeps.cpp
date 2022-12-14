@@ -167,13 +167,30 @@ llvm::cl::opt<unsigned>
 
 llvm::cl::opt<std::string>
     CompilationDB("compilation-database",
-                  llvm::cl::desc("Compilation database"), llvm::cl::Required,
+                  llvm::cl::desc("Compilation database"), llvm::cl::Optional,
                   llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<std::string> ModuleName(
     "module-name", llvm::cl::Optional,
     llvm::cl::desc("the module of which the dependencies are to be computed"),
     llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<std::string> P1689TargetedFileName(
+    "p1689-targeted-file-name", llvm::cl::Optional,
+    llvm::cl::desc("Only supported for P1689, the targeted file name of which "
+                   "the dependencies are to be computed."),
+    llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<std::string> P1689TargetedOutput(
+    "p1689-targeted-output", llvm::cl::Optional,
+    llvm::cl::desc("Only supported for P1689, the targeted output of which the "
+                   "dependencies are to be computed."),
+    llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<std::string> P1689TargettedCommand(
+    llvm::cl::Positional, llvm::cl::ZeroOrMore,
+    llvm::cl::desc("The command line flags for the target of which "
+                   "the dependencies are to be computed."));
 
 llvm::cl::list<std::string> ModuleDepTargets(
     "dependency-target",
@@ -522,19 +539,57 @@ static std::string getModuleCachePath(ArrayRef<std::string> Args) {
   return std::string(Path);
 }
 
-int main(int argc, const char **argv) {
+// getCompilationDataBase - If -compilation-database is set, load the
+// compilation database from the specified file. Otherwise if the we're
+// generating P1689 format, trying to generate the compilation database
+// form the p1689 related command lines. Otherwise, the invocation is
+// ill-formed.
+static std::unique_ptr<tooling::CompilationDatabase>
+getCompilationDataBase(int argc, const char **argv, std::string &ErrorMessage) {
   llvm::InitLLVM X(argc, argv);
   llvm::cl::HideUnrelatedOptions(DependencyScannerCategory);
   if (!llvm::cl::ParseCommandLineOptions(argc, argv))
-    return 1;
+    return nullptr;
 
+  if (!CompilationDB.empty())
+    return tooling::JSONCompilationDatabase::loadFromFile(
+        CompilationDB, ErrorMessage,
+        tooling::JSONCommandLineSyntax::AutoDetect);
+
+  if (Format != ScanningOutputFormat::P1689) {
+    llvm::errs() << "the --compilation-database option: must be specified at "
+                    "least once!";
+    return nullptr;
+  }
+
+  if (P1689TargetedFileName.empty() || P1689TargetedOutput.empty()) {
+    llvm::errs()
+        << "missing compilation database and failed to contruct "
+           "one by --p1689-targeted-file-name, --p1689-targeted-output";
+    return nullptr;
+  }
+
+  // Use FixedCompilationDatabase to parse the command line flags after "--".
+  std::unique_ptr<tooling::FixedCompilationDatabase> FixedCompilationDatabase =
+      tooling::FixedCompilationDatabase::loadFromCommandLine(
+          argc, argv, ErrorMessage,
+          /*Directory=*/".", P1689TargetedFileName, P1689TargetedOutput);
+
+  if (!FixedCompilationDatabase) {
+    llvm::errs()
+        << "We need to pass the command line args after \"--\" marker.";
+    return nullptr;
+  }
+
+  return std::move(FixedCompilationDatabase);
+}
+
+int main(int argc, const char **argv) {
   std::string ErrorMessage;
-  std::unique_ptr<tooling::JSONCompilationDatabase> Compilations =
-      tooling::JSONCompilationDatabase::loadFromFile(
-          CompilationDB, ErrorMessage,
-          tooling::JSONCommandLineSyntax::AutoDetect);
+  std::unique_ptr<tooling::CompilationDatabase> Compilations =
+      getCompilationDataBase(argc, argv, ErrorMessage);
   if (!Compilations) {
-    llvm::errs() << "error: " << ErrorMessage << "\n";
+    llvm::errs() << ErrorMessage << "\n";
     return 1;
   }
 

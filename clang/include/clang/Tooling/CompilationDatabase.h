@@ -180,9 +180,13 @@ public:
   /// \param Argv Points to the command line arguments.
   /// \param ErrorMsg Contains error text if the function returns null pointer.
   /// \param Directory The base directory used in the FixedCompilationDatabase.
+  /// \param FilePath The file path used in the FixedCompilationDatabase.
+  /// \param OutputPath The output path used in the FixedCompilationDatabase.
   static std::unique_ptr<FixedCompilationDatabase>
   loadFromCommandLine(int &Argc, const char *const *Argv, std::string &ErrorMsg,
-                      const Twine &Directory = ".");
+                      const Twine &Directory = ".",
+                      StringRef FilePath = StringRef(),
+                      StringRef OutputPath = StringRef());
 
   /// Reads flags from the given file, one-per-line.
   /// Returns nullptr and sets ErrorMessage if we can't read the file.
@@ -195,17 +199,27 @@ public:
   loadFromBuffer(StringRef Directory, StringRef Data, std::string &ErrorMsg);
 
   /// Constructs a compilation data base from a specified directory
-  /// and command line.
+  /// command line, file path (optional) and output path (Optional).
   FixedCompilationDatabase(const Twine &Directory,
-                           ArrayRef<std::string> CommandLine);
+                           ArrayRef<std::string> CommandLine,
+                           StringRef FilePath = StringRef(),
+                           StringRef OutputPath = StringRef());
 
   /// Returns the given compile command.
   ///
   /// Will always return a vector with one entry that contains the directory
   /// and command line specified at construction with "clang-tool" as argv[0]
   /// and 'FilePath' as positional argument.
+  ///
+  /// This requires the FixedCompilationDatabase haven't set FilePath when
+  /// construction.
   std::vector<CompileCommand>
   getCompileCommands(StringRef FilePath) const override;
+
+  /// Returns the compile commands.
+  std::vector<CompileCommand> getAllCompileCommands() const override {
+    return CompileCommands;
+  }
 
 private:
   /// This is built up to contain a single entry vector to be returned from

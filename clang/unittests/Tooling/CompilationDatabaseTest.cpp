@@ -559,7 +559,7 @@ TEST(FixedCompilationDatabase, GetAllCompileCommands) {
   CommandLine.push_back("two");
   FixedCompilationDatabase Database(".", CommandLine);
 
-  EXPECT_EQ(0ul, Database.getAllCompileCommands().size());
+  EXPECT_EQ(1ul, Database.getAllCompileCommands().size());
 }
 
 TEST(FixedCompilationDatabase, FromBuffer) {

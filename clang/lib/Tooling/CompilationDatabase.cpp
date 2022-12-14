@@ -320,10 +320,9 @@ static bool stripPositionalArgs(std::vector<const char *> Args,
 }
 
 std::unique_ptr<FixedCompilationDatabase>
-FixedCompilationDatabase::loadFromCommandLine(int &Argc,
-                                              const char *const *Argv,
-                                              std::string &ErrorMsg,
-                                              const Twine &Directory) {
+FixedCompilationDatabase::loadFromCommandLine(
+    int &Argc, const char *const *Argv, std::string &ErrorMsg,
+    const Twine &Directory, StringRef FilePath, StringRef OutputPath) {
   ErrorMsg.clear();
   if (Argc == 0)
     return nullptr;
@@ -336,7 +335,8 @@ FixedCompilationDatabase::loadFromCommandLine(int &Argc,
   std::vector<std::string> StrippedArgs;
   if (!stripPositionalArgs(CommandLine, StrippedArgs, ErrorMsg))
     return nullptr;
-  return std::make_unique<FixedCompilationDatabase>(Directory, StrippedArgs);
+  return std::make_unique<FixedCompilationDatabase>(Directory, StrippedArgs,
+                                                    FilePath, OutputPath);
 }
 
 std::unique_ptr<FixedCompilationDatabase>
@@ -369,17 +369,21 @@ FixedCompilationDatabase::loadFromBuffer(StringRef Directory, StringRef Data,
 }
 
 FixedCompilationDatabase::FixedCompilationDatabase(
-    const Twine &Directory, ArrayRef<std::string> CommandLine) {
+    const Twine &Directory, ArrayRef<std::string> CommandLine,
+    StringRef FilePath, StringRef OutputPath) {
   std::vector<std::string> ToolCommandLine(1, GetClangToolCommand());
   ToolCommandLine.insert(ToolCommandLine.end(),
                          CommandLine.begin(), CommandLine.end());
-  CompileCommands.emplace_back(Directory, StringRef(),
-                               std::move(ToolCommandLine),
-                               StringRef());
+  if (!FilePath.empty())
+    ToolCommandLine.push_back(std::string(FilePath));
+  CompileCommands.emplace_back(Directory, FilePath, std::move(ToolCommandLine),
+                               OutputPath);
 }
 
 std::vector<CompileCommand>
 FixedCompilationDatabase::getCompileCommands(StringRef FilePath) const {
+  assert(CompileCommands[0].Filename.empty() &&
+         "We've already set the filename for the fixed compilation databse.");
   std::vector<CompileCommand> Result(CompileCommands);
   Result[0].CommandLine.push_back(std::string(FilePath));
   Result[0].Filename = std::string(FilePath);
