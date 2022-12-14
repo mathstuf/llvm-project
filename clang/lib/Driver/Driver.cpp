@@ -5541,15 +5541,21 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   }
 
   // If `-fmodule-output` is specfied, then:
+  // - If `-fmodule-output` has a value, the module file is
+  //   writing to the value.
   // - If `-o` is specified, the module file is written to the same path
   //   with the output filename in module file's suffix. 
   // - If `-o` is not specified, the module file is written to the working
   //   direcotry with the input filename in module file's suffix.
   if (!AtTopLevel && isa<PrecompileJobAction>(JA) &&
       JA.getType() == types::TY_ModuleFile &&
-      C.getArgs().hasArg(options::OPT_fmodule_output)) {
+      (C.getArgs().hasArg(options::OPT_fmodule_output) ||
+       C.getArgs().hasArg(options::OPT_fmodule_output_EQ))) {
     SmallString<128> TempPath;
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+
+    if (Arg *ModuleFilePath = C.getArgs().getLastArg(options::OPT_fmodule_output_EQ))
+      TempPath = ModuleFilePath->getValue();
+    else if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       TempPath = FinalOutput->getValue();
     else {
       llvm::sys::fs::current_path(TempPath);
