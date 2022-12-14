@@ -22,6 +22,11 @@
 // RUN: clang-scan-deps -format=p1689 --p1689-targeted-file-name=%t/User.cpp --p1689-targeted-output=%t/User.o \
 // RUN:   -- -std=c++20 -c \
 // RUN:   | FileCheck %t/User.cpp -DPREFIX=%/t
+//
+// Check we can generate the make-style dependencies as expected.
+// RUN: clang-scan-deps -format=p1689 --p1689-targeted-file-name=%t/impl_part.cppm --p1689-targeted-output=%t/impl_part.o \
+// RUN:   --p1689-makeformat-output=%t/impl_part.dep -- -std=c++20 -c -MT %t/impl_part.o.ddi -MD
+// RUN: cat %t/impl_part.dep | FileCheck %t/impl_part.cppm -DPREFIX=%/t --check-prefix=CHECK-MAKE
 
 //--- P1689.json.in
 [
@@ -56,7 +61,6 @@
   "output": "DIR/User.o"
 }
 ]
-
 
 //--- M.cppm
 export module M;
@@ -144,6 +148,10 @@ void World() {
 // CHECK-NEXT:   ],
 // CHECK-NEXT:   "version": 1
 // CHECK-NEXT: }
+
+// CHECK-MAKE: [[PREFIX]]/impl_part.o.ddi:
+// CHECK-MAKE:   [[PREFIX]]/impl_part.cppm
+// CHECK-MAKE:   [[PREFIX]]/header.mock
 
 //--- interface_part.cppm
 export module M:interface_part;
