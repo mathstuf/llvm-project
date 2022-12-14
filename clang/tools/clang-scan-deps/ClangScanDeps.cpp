@@ -187,6 +187,13 @@ llvm::cl::opt<std::string> P1689TargetedOutput(
                    "dependencies are to be computed."),
     llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<std::string> P1689MakeformatOutputpath(
+    "p1689-makeformat-output", llvm::cl::Optional,
+    llvm::cl::desc("Only supported for P1689. Print the make-style dependency "
+                   "output to the specified output. This is a helper for build "
+                   "systems to do duplicate scanning."),
+    llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<std::string> P1689TargettedCommand(
     llvm::cl::Positional, llvm::cl::ZeroOrMore,
     llvm::cl::desc("The command line flags for the target of which "
@@ -584,6 +591,19 @@ getCompilationDataBase(int argc, const char **argv, std::string &ErrorMessage) {
   return std::move(FixedCompilationDatabase);
 }
 
+static raw_ostream &getDependencyOS() {
+  if (!P1689MakeformatOutputpath.empty()) {
+    std::error_code EC;
+    static llvm::raw_fd_ostream OS(P1689MakeformatOutputpath, EC);
+    if (EC)
+      llvm::errs() << "Failed to open P1689 make format output file \""
+                   << P1689MakeformatOutputpath << "\" for " << EC.message()
+                   << "\n";
+    return OS;
+  }
+  return llvm::outs();
+}
+
 int main(int argc, const char **argv) {
   std::string ErrorMessage;
   std::unique_ptr<tooling::CompilationDatabase> Compilations =
@@ -662,7 +682,7 @@ int main(int argc, const char **argv) {
 
   SharedStream Errs(llvm::errs());
   // Print out the dependency results to STDOUT by default.
-  SharedStream DependencyOS(llvm::outs());
+  SharedStream DependencyOS(getDependencyOS());
 
   DependencyScanningService Service(ScanMode, Format, OptimizeArgs,
                                     EagerLoadModules);
@@ -722,10 +742,20 @@ int main(int argc, const char **argv) {
                                              Errs))
             HadErrors = true;
         } else if (Format == ScanningOutputFormat::P1689) {
+          llvm::Optional<std::string> MakeformatOutput;
+          if (!P1689MakeformatOutputpath.empty())
+            MakeformatOutput.emplace();
+
           auto MaybeRule = WorkerTools[I]->getP1689ModuleDependencyFile(
-              *Input, CWD, MaybeModuleName);
-          if (handleP1689DependencyToolResult(Filename, MaybeRule, PD, Errs))
-            HadErrors = true;
+              *Input, CWD, MakeformatOutput, MaybeModuleName);
+          HadErrors =
+              handleP1689DependencyToolResult(Filename, MaybeRule, PD, Errs);
+
+          if (MakeformatOutput && !MakeformatOutput->empty() && !HadErrors) {
+            llvm::Expected<std::string> MaybeOutput(*MakeformatOutput);
+            HadErrors = handleMakeDependencyToolResult(Filename, MaybeOutput,
+                                                       DependencyOS, Errs);
+          }
         } else if (DeprecatedDriverCommand) {
           auto MaybeFullDeps =
               WorkerTools[I]->getFullDependenciesLegacyDriverCommand(
