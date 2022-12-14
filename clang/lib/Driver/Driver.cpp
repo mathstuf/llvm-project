@@ -5540,6 +5540,27 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return "-";
   }
 
+  // If `-fmodule-output` is specfied, then:
+  // - If `-o` is specified, the module file is written to the same path
+  //   with the output filename in module file's suffix. 
+  // - If `-o` is not specified, the module file is written to the working
+  //   direcotry with the input filename in module file's suffix.
+  if (!AtTopLevel && isa<PrecompileJobAction>(JA) &&
+      JA.getType() == types::TY_ModuleFile &&
+      C.getArgs().hasArg(options::OPT_fmodule_output)) {
+    SmallString<128> TempPath;
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+      TempPath = FinalOutput->getValue();
+    else {
+      llvm::sys::fs::current_path(TempPath);
+      llvm::sys::path::append(TempPath, llvm::sys::path::filename(BaseInput));
+    }
+
+    const char *Extension = types::getTypeTempSuffix(JA.getType());
+    llvm::sys::path::replace_extension(TempPath, Extension);
+    return C.addResultFile(C.getArgs().MakeArgString(TempPath.c_str()), &JA);
+  }
+
   if (IsDXCMode() && !C.getArgs().hasArg(options::OPT_o))
     return "-";
 
