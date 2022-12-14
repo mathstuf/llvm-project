@@ -56,6 +56,21 @@ struct ModuleID {
   /// treated as separate modules for the purpose of a build.
   std::string ContextHash;
 
+  /// Optional. The source path to the module.
+  std::string SourcePath;
+
+  /// If this module is a standard c++ interface unit.
+  bool IsStdCXXModuleInterface = true;
+
+  enum class ModuleType {
+    NamedCXXModule,
+    // To be supported
+    // AngleHeaderUnit,
+    // QuoteHeaderUnit,
+    ClangModuleMapModule
+  };
+  ModuleType Type = ModuleType::ClangModuleMapModule;
+
   bool operator==(const ModuleID &Other) const {
     return ModuleName == Other.ModuleName && ContextHash == Other.ContextHash;
   }
@@ -221,6 +236,10 @@ private:
   /// Whether to set up command-lines to load PCM files eagerly.
   bool EagerLoadModules;
 
+  llvm::Optional<ModuleID> ProvidedStdCXXModule;
+  std::vector<ModuleID> RequiredStdCXXModules;
+
+  bool isP1689Format() const;
   /// Checks whether the module is known as being prebuilt.
   bool isPrebuiltModule(const Module *M);
 

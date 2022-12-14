@@ -40,7 +40,11 @@ class DependencyConsumer {
 public:
   virtual ~DependencyConsumer() {}
 
-  virtual void handleBuildCommand(Command Cmd) = 0;
+  virtual void
+  handleProvidedAndRequiredStdCXXModules(llvm::Optional<ModuleID> Provided,
+                                         std::vector<ModuleID> Requires) {}
+
+  virtual void handleBuildCommand(Command Cmd) {}
 
   virtual void
   handleDependencyOutputOpts(const DependencyOutputOptions &Opts) = 0;
